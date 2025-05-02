@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Генератор QR-кодов с паролем и сканером</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    input, button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      font-size: 16px;
+    }
+    #qrcode {
+      margin-top: 20px;
+    }
+    #userInfo img {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 50%;
+      margin-bottom: 10px;
+    }
+    #userInfo {
+      margin-top: 20px;
+    }
+    #scanner {
+      display: none;
+      margin-top: 20px;
+    }
+    canvas {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="passwordSection">
+    <h2>Доступ к генератору QR-кодов</h2>
+    <input type="password" id="passwordInput" placeholder="Введите пароль" />
+    <button onclick="checkPassword()">Войти</button>
+  </div>
+
+  <div id="qrSection" style="display: none;">
+    <h2>Генератор QR-кодов</h2>
+    <label for="qrText">Текст или ссылка для QR-кода:</label>
+    <input type="text" id="qrText" placeholder="Введите текст или ссылку" />
+    <button onclick="generateQR()">Создать QR-код</button>
+    <div id="qrcode"></div>
+
+    <h3>Информация о пользователе</h3>
+    <input type="text" id="name" placeholder="Имя" />
+    <input type="text" id="position" placeholder="Должность" />
+    <input type="text" id="photoUrl" placeholder="Ссылка на фото (URL)" />
+
+    <h3>Отображение данных:</h3>
+    <div id="userInfo">
+      <img id="photo" src="" alt="" style="display: none;" />
+      <p id="userName"></p>
+      <p id="userPosition"></p>
+    </div>
+
+    <button onclick="showInfo()">Показать данные</button>
+
+    <h3>Сканер QR-кодов</h3>
+    <button onclick="startScanner()">Запустить камеру для сканирования</button>
+    <div id="scanner">
+      <video id="video" width="100%" height="auto" style="border: 1px solid black;"></video>
+      <canvas id="canvas" style="display: none;"></canvas>
+      <p id="scannedResult"></p>
+    </div>
+  </div>
+
+  <script>
+    let password = "lg0zx33gr8";
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let context = canvas.getContext('2d');
+    let scannedResult = document.getElementById('scannedResult');
+    
+    function checkPassword() {
+      const enteredPassword = document.getElementById("passwordInput").value;
+      if (enteredPassword === password) {
+        document.getElementById("passwordSection").style.display = "none";
+        document.getElementById("qrSection").style.display = "block";
+      } else {
+        alert("Неверный пароль");
+      }
+    }
+
+    function generateQR() {
+      const qrText = document.getElementById("qrText").value;
+      const qrcodeContainer = document.getElementById("qrcode");
+      qrcodeContainer.innerHTML = ""; // очищаем контейнер
+      QRCode.toCanvas(qrText, function (err, canvas) {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        qrcodeContainer.appendChild(canvas);
+      });
+    }
+
+    function showInfo() {
+      const name = document.getElementById("name").value;
+      const position = document.getElementById("position").value;
+      const photoUrl = document.getElementById("photoUrl").value;
+
+      document.getElementById("userName").textContent = "Имя: " + name;
+      document.getElementById("userPosition").textContent = "Должность: " + position;
+
+      const photo = document.getElementById("photo");
+      if (photoUrl) {
+        photo.src = photoUrl;
+        photo.style.display = "block";
+      } else {
+        photo.style.display = "none";
+      }
+    }
+
+    function startScanner() {
+      document.getElementById('scanner').style.display = "block";
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(function(stream) {
+          video.srcObject = stream;
+          video.setAttribute('playsinline', true); // необходим для работы в Safari
+          video.play();
+          requestAnimationFrame(scanQRCode);
+        });
+    }
+
+    function scanQRCode() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, canvas.width, canvas.height, {
+          inversionAttempts: "dontInvert",
+        });
+
+        if (code) {
+          scannedResult.textContent = "Сканированный QR-код: " + code.data;
+          video.pause(); // остановить видео поток после сканирования
+          video.srcObject.getTracks().forEach(track => track.stop());
+        } else {
+          requestAnimationFrame(scanQRCode);
+        }
+      } else {
+        requestAnimationFrame(scanQRCode);
+      }
+    }
+  </script>
+
+</body>
+</html>
